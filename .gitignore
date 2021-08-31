@@ -40,3 +40,5 @@ vignettes/*.pdf
 
 #Other
 *.accdb
+*.xlsx
+*.xls
