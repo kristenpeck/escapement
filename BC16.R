@@ -81,12 +81,14 @@ BFstreams <- unique(bc16$StreamName[grep("finnega", bc16$Observer, ignore.case =
 #subset columns - exclude chum
 
 bc16short <- bc16 %>% 
-  select(SilID,StreamID,StatArea,StreamName,Year=`Inspection Year`,
-         Date,yday,startdatetime,enddatetime,duration,
-         Affiliation,PrimaryInspMode,StartBoundary, StopBoundary, WaterColour,WaterBankfull,
-         Brightness,Precipitation, StreamVisibility,Sock_Active_Spawning,Sock_AL_ObsTotal,
+  select(SilID, StreamID, StatArea, StreamName, Year=`Inspection Year`,
+         Date,yday,startdatetime,enddatetime,duration,Observer,
+         Affiliation,PrimaryInspMode,StartBoundary,StopBoundary, 
+         WaterColour,WaterBankfull,Brightness,Precipitation, StreamVisibility,
+         
+         Sock_Active_Spawning,Sock_AL_ObsTotal,
          Sock_AL_EstTotal,Sock_AL_EstReliability, Sock_AL_FishCountability,
-         Coho_Active_Spawning,Coho_AL_ObsTotal,Coho_AL_EstTotal,Coho_AL_EstReliability, 
+         Coho_Active_Spawning,Coho_AL_Spawning,Coho_AL_ObsTotal,Coho_AL_EstTotal,Coho_AL_EstReliability, 
          Coho_AL_FishCountability,Pink_Active_Spawning,Pink_AL_ObsTotal,
          Pink_AL_EstTotal,Pink_AL_EstReliability, Pink_AL_FishCountability,
          Chum_Active_Spawning, Chum_AL_ObsTotal,Chum_AL_EstTotal,Chum_AL_EstReliability, 
@@ -96,6 +98,18 @@ bc16short <- bc16 %>%
   mutate(co.countability = recode(Coho_AL_FishCountability, F ="Fair", G="Good", 
                                   E="Excellent",High="Good", Nil ="Poor", 
                                   `500`="NA"))
+
+#look through Barry's stream data
+
+BFinspect <- bc16 %>% 
+  filter(StreamName %in% BFstreams) %>% 
+  select(-c(Month,Day,StartTime,StopTime,`Start Time`,`Stop Time`,REG_NAME,
+            InpectDetailsAsPerNar))
+
+write.csv(BFinspect, "BFinspect.csv", row.names = F, na = "")
+
+
+
 
 
 #### BF Streams ####
@@ -107,7 +121,6 @@ bc16.area4 <- bc16short %>%
   filter(StatArea %in% "4") %>% 
   filter(Year >=2015) #%>% 
 #filter(PrimaryInspMode %in% "Helicopter") %>% 
-
 
 #number of SILs per year
 table(bc16.area4$Year) 
@@ -207,7 +220,8 @@ str.group <- data.frame(StreamName=c(group1, group2, group3, group4, group5)) %>
 
 for(i in c(1:3,5)){
   BFstream.select <- bc16.area4 %>% 
-    filter(StreamName %in% str.group$StreamName[which(str.group$group==i)]) 
+    filter(StreamName %in% str.group$StreamName[which(str.group$group==i)],
+           Coho_Active_Spawning %in% c("Start", "Peak","End")) 
   
   BFstream.select %>% 
     group_by(Year, StreamName) %>%
@@ -215,9 +229,9 @@ for(i in c(1:3,5)){
     arrange(Year)
   
   plot <- ggplot(data=BFstream.select)+
-    geom_point(aes(x=as.Date(fake.date),y=Coho_AL_ObsTotal,
+    geom_point(aes(x=as.Date(fake.date),y=Coho_AL_Spawning,
                    col=StreamName, shape=Coho_Active_Spawning), size=2)+
-    geom_line(aes(x=as.Date(fake.date),y=Coho_AL_ObsTotal,
+    geom_line(aes(x=as.Date(fake.date),y=Coho_AL_Spawning,
                   col=StreamName))+
     facet_wrap(~Year, scales="free")+
     scale_x_date(limits = c(as_date("2021-aug-10"),as_date("2021-dec-15")),
@@ -230,12 +244,14 @@ for(i in c(1:3,5)){
           axis.text.x = element_text(size=8,angle =45, hjust=1),
           legend.text = element_text(size=6),title = element_text(size=6),
           legend.box = "vertical")+
-    scale_shape_discrete(labels=c("Start", "Before","Peak", "End","NA"))
+    scale_shape_discrete(limits=c("Start","Peak", "End"))
   #not sure if this is working?                
   print(plot)  
   ggsave(plot = plot, filename = paste0("BFstreamgroup",groups[i],".png"), 
          height=6, width=10,device = "png", dpi=300)
 }
+
+BFstream.select
 
 
 #Make interactive map of stream mouths - BF only streams
@@ -294,6 +310,24 @@ coho.timing <- coho.streams %>%
 #this is the peak spawn timing according to table in BC16
 #write.csv(coho.timing, "coho.timing_areas1-5.csv", row.names=F)
 
+#the following is the peak spawning timing by year according to the SENs
+
+coho.SEN<- read_excel("tblSEN.xlsx", sheet = "tblSEN") %>% 
+  select(StreamID,Year,CohoArrivMonth:CohoEstType,
+         AnnualEstRationale:UpdatedByDate)
+names(coho.SEN)
+
+SEN.timing <- coho.streams %>% 
+  left_join(coho.SEN, by=c("StreamId"="StreamID")) %>% 
+  mutate(apprday = recode(CohoPeakSpawnDay,A="1",B="11",C="21")) %>% 
+  mutate(apprdate = dmy(paste(apprday,CohoPeakSpawnMonth,"2021"))) %>% 
+  mutate(apprdate.dm = format(apprdate,format="%d-%b")) %>% 
+  arrange(PFMA,Stream,apprdate.dm) %>% 
+  filter(CohoAnnualEst != "N/I")
+
+write.csv(SEN.timing, "SEN-based.timing.coho.csv", row.names = F, na="")
+
+
 
 
 #plots of actual survey obs (all survey types) by statistical area
@@ -316,7 +350,7 @@ for(i in 1:length(areas)){
   
   plot <- ggplot(data=str.select)+
     geom_point(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                   col=StreamName), size=2)+
+                   col=StreamName, shape=Coho_Active_Spawning), size=2)+
     geom_line(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
                   col=StreamName))+
     facet_wrap(~Year, scales="free_y")+
@@ -345,7 +379,7 @@ str.area1 <- table(bc16.area1$StreamName) %>%
 
 plot.area1 <- ggplot(data=bc16.area1)+
   geom_point(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                 col=StreamName), size=2)+
+                 col=StreamName, shape=Coho_Active_Spawning), size=2)+
   geom_line(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
                 col=StreamName))+
   facet_wrap(~Year, scales="free_y")+
@@ -358,8 +392,8 @@ plot.area1 <- ggplot(data=bc16.area1)+
         axis.text.x = element_text(size=8,angle =45, hjust=1),
         legend.text = element_text(size=8),legend.box = "vertical")
 plot.area1
-# ggsave(plot = plot.area1, filename = "area1coho.png", 
-#         height=6, width=10,device = "png", dpi=300)
+ ggsave(plot = plot.area1, filename = "area1coho.png", 
+         height=6, width=10,device = "png", dpi=300)
 
 
 
@@ -376,7 +410,7 @@ str.area2E <- table(bc16.area2E$StreamName) %>%
 
 plot.area2E <- ggplot(data=str.area2E)+
   geom_point(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                 col=StreamName, shape=co.countability), size=2)+
+                 col=StreamName, shape=Coho_Active_Spawning), size=2)+
   geom_line(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
                 col=StreamName))+
   facet_wrap(~Year, scales="free_y")+
@@ -390,8 +424,8 @@ plot.area2E <- ggplot(data=str.area2E)+
         legend.text = element_text(size=8),legend.box = "vertical")
 plot.area2E
 
-# ggsave(plot = plot.area2E, filename = "area2Ecoho.png", 
-#        height=6, width=10,device = "png", dpi=300)
+ ggsave(plot = plot.area2E, filename = "area2Ecoho.png", 
+        height=6, width=10,device = "png", dpi=300)
 
 
 # Area 2W
@@ -407,7 +441,7 @@ str.area2W <- table(bc16.area2W$StreamName) %>%
 
 plot.area2W <- ggplot(data=str.area2W)+
   geom_point(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                 col=StreamName, shape=co.countability), size=2)+
+                 col=StreamName, shape=Coho_Active_Spawning), size=2)+
   geom_line(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
                 col=StreamName))+
   facet_wrap(~Year, scales="free_y")+
@@ -422,8 +456,8 @@ plot.area2W <- ggplot(data=str.area2W)+
         legend.box = "vertical")
 plot.area2W
 
-# ggsave(plot = plot.area2W, filename = "area2Wcoho.png", 
-#        height=6, width=10,device = "png", dpi=300)
+ ggsave(plot = plot.area2W, filename = "area2Wcoho.png", 
+        height=6, width=10,device = "png", dpi=300)
 
 
 # Area 3
@@ -440,7 +474,7 @@ str.area3 <- table(bc16.area3$StreamName) %>%
 
 plot.area3 <- ggplot(data=str.area3)+
   geom_point(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                 col=StreamName, shape=co.countability), size=2)+
+                 col=StreamName, shape=Coho_Active_Spawning), size=2)+
   geom_line(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
                 col=StreamName))+
   facet_wrap(~Year, scales="free_y")+
@@ -455,8 +489,8 @@ plot.area3 <- ggplot(data=str.area3)+
         legend.box = "vertical")
 plot.area3
 
-# ggsave(plot = plot.area3, filename = "area3coho.png", 
-#        height=6, width=10,device = "png", dpi=300)
+ ggsave(plot = plot.area3, filename = "area3coho.png", 
+        height=6, width=10,device = "png", dpi=300)
 
 
 
@@ -474,7 +508,7 @@ str.area5 <- table(bc16.area5$StreamName) %>%
 
 plot.area5 <- ggplot(data=str.area5)+
   geom_point(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                 col=StreamName, shape=co.countability), size=2)+
+                 col=StreamName, shape=Coho_Active_Spawning), size=2)+
   geom_line(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
                 col=StreamName))+
   facet_wrap(~Year, scales="free_y")+
@@ -489,8 +523,8 @@ plot.area5 <- ggplot(data=str.area5)+
         legend.box = "vertical")
 plot.area5
 
-# ggsave(plot = plot.area5, filename = "area5coho.png", 
-#        height=6, width=10,device = "png", dpi=300)
+ ggsave(plot = plot.area5, filename = "area5coho.png", 
+        height=6, width=10,device = "png", dpi=300)
 
 
 #look at hydrology during counts
