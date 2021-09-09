@@ -26,7 +26,8 @@ bc16.0419raw <- read_excel("Stream_Inspection2004_2019.xlsx",
                            sheet = "StreamInspection")
 streams<- read_excel("Streams.xlsx", sheet = "Streams") %>% 
   select(StreamId,StatArea,StreamName,REG_NAME)
-
+bc16.9803raw <- read_excel("Stream_Inspection1998_2003.xlsx", 
+                           sheet= "Stream_Inspection1998_2003")
 
 
 #Fix date problems in Barry's 2020 data
@@ -54,7 +55,7 @@ bc16.BF <- rbind(bc16.BFbaddate,bc16.BFgooddate)
 
 
 #remove data for other years with problem dates (may go through the bad ones later)
-# Only using 2004-2019 because data format changed prior to 2004
+# only from 2004-2019
 
 bc16.gooddate <- bc16.0419raw %>% 
   filter(year(SilDate) == `Inspection Year`) %>% 
@@ -106,7 +107,7 @@ BFinspect <- bc16 %>%
   select(-c(Month,Day,StartTime,StopTime,`Start Time`,`Stop Time`,REG_NAME,
             InpectDetailsAsPerNar))
 
-write.csv(BFinspect, "BFinspect.csv", row.names = F, na = "")
+#write.csv(BFinspect, "BFinspect.csv", row.names = F, na = "")
 
 
 
@@ -117,9 +118,9 @@ write.csv(BFinspect, "BFinspect.csv", row.names = F, na = "")
 # subset Area 4 and filter to only streams barry did
 
 bc16.area4 <- bc16short %>% 
-  filter(StreamName %in% BFstreams) %>% 
-  filter(StatArea %in% "4") %>% 
-  filter(Year >=2015) #%>% 
+  filter(StreamName %in% BFstreams) #%>%
+  #filter(StatArea %in% "4") #%>%
+ # filter(Year >=2015) #%>% 
 #filter(PrimaryInspMode %in% "Helicopter") %>% 
 
 #number of SILs per year
@@ -134,7 +135,7 @@ as.data.frame(table(bc16.area4$StreamName))
 #write.csv(date.stream, "date.stream.csv", row.names = F)
 
 
-# order stream visits per stream by year
+# order stream visits per stream by day of the year
 
 bc16.ordered <- bc16.area4 %>% 
   arrange(yday) %>% 
@@ -146,7 +147,7 @@ bc16.ordered <- bc16.area4 %>%
 #   group_by(StreamName) %>% 
 #   summarize(unique(StreamID))
 
-
+#look at sockeye and coho timing in Babine sections 1-5
 Babine.sock <- ggplot(data = bc16.ordered %>% filter(Year %in% c(2018,2019,2020), 
                                                      StreamID %in% c(463,464,465)))+
   geom_point(aes(x=as_date(fake.date),y=Sock_AL_ObsTotal, 
@@ -155,6 +156,7 @@ Babine.sock <- ggplot(data = bc16.ordered %>% filter(Year %in% c(2018,2019,2020)
                 col=StreamName, linetype=as.factor(Year)), size=1)+
   scale_x_date(limits = c(as_date("2021-aug-20"),as_date("2021-dec-15")),
                date_breaks= "1 week", date_labels = "%d%b")+
+  scale_shape_discrete(limits=c("Before","Start","Peak", "End","NA"))+
   labs(title="Babine Sockeye",x="appr.date")+
   theme_dark()+
   theme(legend.position = "none",
@@ -171,6 +173,7 @@ Babine.coho <- ggplot(data = bc16.ordered %>% filter(Year %in% c(2018,2019,2020)
                 col=StreamName, linetype=as.factor(Year)), size=1)+
   scale_x_date(limits = c(as_date("2021-aug-20"),as_date("2021-dec-15")),
                date_breaks= "1 week", date_labels = "%d%b")+
+  scale_shape_discrete(limits=c("Before","Start","Peak", "End","NA"))+
   labs(title="Babine Coho",x="appr.date")+
   theme_dark()+
   theme(legend.position = "bottom",
@@ -221,7 +224,8 @@ str.group <- data.frame(StreamName=c(group1, group2, group3, group4, group5)) %>
 for(i in c(1:3,5)){
   BFstream.select <- bc16.area4 %>% 
     filter(StreamName %in% str.group$StreamName[which(str.group$group==i)],
-           Coho_Active_Spawning %in% c("Start", "Peak","End")) 
+           Coho_Active_Spawning %in% c("Before","Start", "Peak","End"),
+           Year >=2010) 
   
   BFstream.select %>% 
     group_by(Year, StreamName) %>%
@@ -244,8 +248,7 @@ for(i in c(1:3,5)){
           axis.text.x = element_text(size=8,angle =45, hjust=1),
           legend.text = element_text(size=6),title = element_text(size=6),
           legend.box = "vertical")+
-    scale_shape_discrete(limits=c("Start","Peak", "End"))
-  #not sure if this is working?                
+    scale_shape_discrete(limits=c("Before","Start","Peak", "End","NA"))               
   print(plot)  
   ggsave(plot = plot, filename = paste0("BFstreamgroup",groups[i],".png"), 
          height=6, width=10,device = "png", dpi=300)
@@ -256,7 +259,8 @@ BFstream.select
 
 #Make interactive map of stream mouths - BF only streams
 
-stream.loc <- read_excel("Streams.xlsx", sheet = "BFstreams")
+stream.loc <- read_excel("Streams.xlsx", sheet = "BFstreams") %>% 
+  left_join(streams, by=c("stream" = "StreamName"))
 
 stream.loc10 <- stream.loc %>% 
   filter(UTMZ %in% 10) %>% 
@@ -268,9 +272,38 @@ stream.loc9 <- stream.loc %>%
   st_as_sf(coords= c("UTME","UTMN"), crs = 3156) %>% 
   st_transform(crs=3005)
 
-stream.pts <- rbind(stream.loc9,stream.loc10)
+stream.pts.bf <- rbind(stream.loc9,stream.loc10) %>% 
+  mutate(cat="BFstreams") %>% 
+  select(PFMA=StatArea,stream,geometry,cat)
 
-mapview(stream.pts) 
+mapview(stream.pts.bf) 
+duplicated(stream.pts.coho$stream)
+
+#Make interactive map of stream mouths - Coho baseline streams
+
+stream.loc <- read_excel("Streams.xlsx", sheet = "CohoBaseline")
+
+stream.loc10 <- stream.loc %>% 
+  filter(UTMZ %in% 10) %>% 
+  st_as_sf(coords= c("UTME","UTMN"), crs = 3157) %>% 
+  st_transform(crs=3005)
+
+stream.loc9 <- stream.loc %>% 
+  filter(UTMZ %in% 9) %>% 
+  st_as_sf(coords= c("UTME","UTMN"), crs = 3156) %>% 
+  st_transform(crs=3005)
+
+stream.pts.coho <- rbind(stream.loc9,stream.loc10) %>% 
+  mutate(cat = "baseline2021") %>% 
+  select(PFMA,stream=Stream,geometry,cat)
+
+mapview(stream.pts.coho)
+
+#join the two
+stream.pts <- rbind(stream.pts.bf,stream.pts.coho)
+
+mapviewOptions(vector.palette = colorRampPalette(c("red", "blue")))
+mapview(list(stream.pts), zcol="cat")
 
 
 
@@ -325,7 +358,7 @@ SEN.timing <- coho.streams %>%
   arrange(PFMA,Stream,apprdate.dm) %>% 
   filter(CohoAnnualEst != "N/I")
 
-write.csv(SEN.timing, "SEN-based.timing.coho.csv", row.names = F, na="")
+#write.csv(SEN.timing, "SEN-based.timing.coho.csv", row.names = F, na="")
 
 
 
@@ -340,8 +373,7 @@ for(i in 1:length(areas)){
   
   str.select <- bc16short %>%
     filter(StreamName %in% stream.select$StreamName, Year >= 2010) %>% 
-    mutate(ydate = as_date(yday, origin = "2021-01-01")) %>% 
-    mutate(ydate.dm = format(ydate,format="%d-%b"))
+    mutate(fake.date = as_date(yday, origin = "2021-01-01")) 
   
   str.select %>% 
     group_by(Year, StreamName) %>%
@@ -356,6 +388,7 @@ for(i in 1:length(areas)){
     facet_wrap(~Year, scales="free_y")+
     scale_x_date(limits = c(as_date("2021-aug-10"),as_date("2021-dec-15")),
                  date_labels = "%d-%b", date_breaks="2 weeks")+
+    scale_shape_discrete(limits=c("Before","Start","Peak", "End","NA"))+
     labs(y="# Coho Observed", title = paste("StatArea=",str.select$StatArea),
          col="", x="appr.date")+
     theme_dark()+
@@ -363,6 +396,8 @@ for(i in 1:length(areas)){
           axis.text.x = element_text(size=8,angle =45, hjust=1),
           legend.text = element_text(size=8),legend.box = "vertical")
   print(plot)
+  ggsave(plot = plot, filename = paste0("area",areas[i],"coho.png"), 
+         height=6, width=10,device = "png", dpi=300)
 }
 
 
@@ -436,7 +471,8 @@ str.area2W <- table(bc16.area2W$StreamName) %>%
   as.data.frame() %>% 
   filter(Freq>=25) %>% 
   select(StreamName = Var1) %>% 
-  left_join(bc16short)
+  left_join(bc16short) %>% 
+  filter(Coho_Active_Spawning %in% c("Start", "Peak","End"))
 
 
 plot.area2W <- ggplot(data=str.area2W)+
@@ -469,7 +505,8 @@ str.area3 <- table(bc16.area3$StreamName) %>%
   filter(Freq>=40) %>% 
   select(StreamName = Var1) %>% 
   left_join(bc16short) %>% 
-  filter(Year >= 2010)
+  filter(Year >= 2010) %>% 
+  filter(Coho_Active_Spawning %in% c("Start", "Peak","End"))
 
 
 plot.area3 <- ggplot(data=str.area3)+
@@ -482,6 +519,7 @@ plot.area3 <- ggplot(data=str.area3)+
   #              date_labels = "%d-%b", date_breaks="2 weeks")+
   labs(y="# Coho Observed", title = paste("StatArea=",bc16.area3$StatArea),
        col="", x="appr.date")+
+  scale_shape_discrete(limits=c("Start","Peak", "End"))+
   theme_dark()+
   theme(legend.position = "bottom",
         axis.text.x = element_text(size=8,angle =45, hjust=1),
@@ -566,7 +604,7 @@ hydro.skeena <- hy_daily_levels(station_number = c("08EB005","08EB003")) %>%
   #filter(julian %in% c(yday(ymd("2021-aug-01")),yday(ymd("2021-dec-01"))) ) %>% 
   #filter(!is.na(year))
   
-  ggplot(data=hydro.skeena)+
+ggplot(data=hydro.skeena)+
   geom_line(aes(x=julian, y=Value, colour=name), size=1) + 
   facet_wrap(~year)
 
