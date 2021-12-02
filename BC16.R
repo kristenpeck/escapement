@@ -86,10 +86,9 @@ bc16short <- bc16 %>%
          Date,yday,startdatetime,enddatetime,duration,Observer,
          Affiliation,PrimaryInspMode,StartBoundary,StopBoundary, 
          WaterColour,WaterBankfull,Brightness,Precipitation, StreamVisibility,
-         
-         Sock_Active_Spawning,Sock_AL_ObsTotal,
+         Sock_AL_Hold,Sock_AL_Spawning,Sock_AL_ObsTotal,
          Sock_AL_EstTotal,Sock_AL_EstReliability, Sock_AL_FishCountability,
-         Coho_Active_Spawning,Coho_AL_Spawning,Coho_AL_ObsTotal,Coho_AL_EstTotal,Coho_AL_EstReliability, 
+         Coho_AL_Hold,Coho_AL_Spawning,Coho_AL_ObsTotal,Coho_AL_EstTotal,Coho_AL_EstReliability, 
          Coho_AL_FishCountability,Pink_Active_Spawning,Pink_AL_ObsTotal,
          Pink_AL_EstTotal,Pink_AL_EstReliability, Pink_AL_FishCountability,
          Chum_Active_Spawning, Chum_AL_ObsTotal,Chum_AL_EstTotal,Chum_AL_EstReliability, 
@@ -172,7 +171,7 @@ Babine.coho <- ggplot(data = bc16.ordered %>% filter(Year %in% c(2018,2019,2020)
   geom_line(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal, 
                 col=StreamName, linetype=as.factor(Year)), size=1)+
   scale_x_date(limits = c(as_date("2021-aug-20"),as_date("2021-dec-15")),
-               date_breaks= "1 week", date_labels = "%d%b")+
+               date_breaks= "1 week", date_labels = "%d-%b")+
   scale_shape_discrete(limits=c("Before","Start","Peak", "End","NA"))+
   labs(title="Babine Coho",x="appr.date")+
   theme_dark()+
@@ -198,7 +197,7 @@ bc16.ordered %>%
 
 #Barry stream groupings-kinda arbitrary based on location
 
-group1 <- c("ZYMOETZ RIVER - UPPER","BULKLEY RIVER - UPPER",
+group1 <- c("BULKLEY RIVER - UPPER",
             "MORICE RIVER","MORICE LAKE","TELKWA RIVER","GOSNELL CREEK",
             "NANIKA RIVER","ATNA RIVER AND LAKE","OWEN CREEK")
 group2 <- c("BEAR RIVER","ASITKA LAKE","BEAR LAKE","SALIX CREEK",
@@ -208,15 +207,20 @@ group3 <- c("MORRISON CREEK","TAHLO CREEK - (LOWER)",
             "BABINE RIVER (SECTION 5)","BABINE RIVER (SECTIONS 1 - 3)",
             "NILKITKWA RIVER","NICHYESKWA RIVER")
 group4 <- c("SHASS CREEK","SUTHERLAND RIVER","PIERRE CREEK","TWAIN CREEK")
-group5 <- c("KITSEGUECLA RIVER","TOUHY CREEK")
+group5 <- c("ZYMOETZ RIVER - UPPER","KITSEGUECLA RIVER","TOUHY CREEK")
 
-groups <- c(1:5)
+groups <- data.frame(group = c(1:5),name=c("Bulkley-Morice","Bear",
+                                            "Lower Babine","Upper Babine",
+                                            "Zymoetz-Kitseg-Touhy"))
 
-str.group <- data.frame(StreamName=c(group1, group2, group3, group4, group5)) %>% 
+str.group <- tibble(StreamName=c(group1, group2, group3, group4, group5)) %>% 
   mutate(group=ifelse(StreamName %in% group1,1,
                       ifelse(StreamName %in% group2,2,
                              ifelse(StreamName %in% group3,3,
-                                    ifelse(StreamName %in% group4,4,5)))))
+                                    ifelse(StreamName %in% group4,4,5))))) %>% 
+  left_join(groups)
+  
+  
 
 
 # plot data based on group of streams
@@ -257,6 +261,8 @@ for(i in c(1:3,5)){
 BFstream.select
 
 
+#### Maps ####
+
 #Make interactive map of stream mouths - BF only streams
 
 stream.loc <- read_excel("Streams.xlsx", sheet = "BFstreams") %>% 
@@ -276,8 +282,8 @@ stream.pts.bf <- rbind(stream.loc9,stream.loc10) %>%
   mutate(cat="BFstreams") %>% 
   select(PFMA=StatArea,stream,geometry,cat)
 
-mapview(stream.pts.bf) 
-duplicated(stream.pts.coho$stream)
+#mapview(stream.pts.bf) 
+
 
 #Make interactive map of stream mouths - Coho baseline streams
 
@@ -297,7 +303,7 @@ stream.pts.coho <- rbind(stream.loc9,stream.loc10) %>%
   mutate(cat = "baseline2021") %>% 
   select(PFMA,stream=Stream,geometry,cat)
 
-mapview(stream.pts.coho)
+#mapview(stream.pts.coho)
 
 #join the two
 stream.pts <- rbind(stream.pts.bf,stream.pts.coho)
@@ -306,6 +312,9 @@ mapviewOptions(vector.palette = colorRampPalette(c("red", "blue")))
 mapview(list(stream.pts), zcol="cat")
 
 
+#geo groupings:
+upper <- c("Damdochax River","Upper Skeena (Above Kluatantan)",
+           "Chipmunk Creek","Mosque River")
 
 
 
@@ -401,170 +410,57 @@ for(i in 1:length(areas)){
 }
 
 
-# Area 1
-
-bc16.area1 <- bc16short %>% 
-  filter(StatArea %in% "1") 
-str.area1 <- table(bc16.area1$StreamName) %>% 
-  as.data.frame() %>% 
-  filter(Freq>=40) %>% 
-  select(StreamName = Var1) %>% 
-  left_join(bc16short)
 
 
-plot.area1 <- ggplot(data=bc16.area1)+
-  geom_point(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                 col=StreamName, shape=Coho_Active_Spawning), size=2)+
-  geom_line(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                col=StreamName))+
-  facet_wrap(~Year, scales="free_y")+
-  # scale_x_date(limits = c(as_date("2021-Jul-10"),as_date("2021-dec-15")),
-  #              date_labels = "%d-%b", date_breaks="2 weeks")+
-  labs(y="# Coho Observed", title = paste("StatArea=",str.area1$StatArea),
-       col="", x="appr.date")+
+
+#### 2020 timing BF ####
+str.group
+
+BF2020 <- bc16.area4 %>% 
+  filter(Year %in% 2020, PrimaryInspMode %in% c("Helicopter")) %>% 
+  left_join(str.group)
+str(BF2020)
+
+ggplot(data = BF2020) +
+  geom_point(aes(x=as_date(Date), y=Coho_AL_ObsTotal, col=name), shape=19, size=2)+
+  geom_line(aes(x=as_date(Date), y=Coho_AL_ObsTotal, col=StreamName))+
+  geom_point(aes(x=as_date(Date), y=Sock_AL_ObsTotal, col=name), shape=2,  size=2)+
+  geom_line(aes(x=as_date(Date), y=Sock_AL_ObsTotal, col=StreamName))+
+  scale_x_date(limits = c(as_date("2020-Sep-1"),as_date("2020-dec-15")),
+               date_labels = "%d-%b", date_breaks="2 weeks")+
+  facet_wrap(~name,scales = "free_y")+
+  theme_dark()+
+  theme(legend.position = "none",
+        axis.text.x = element_text(size=8,angle =45, hjust=1),
+        legend.text = element_text(size=8),legend.box = "vertical")
+
+
+#individually by group
+for(i in 1:nrow(groups)){
+  
+group2020plot <- ggplot(data = BF2020[BF2020$group %in% groups[i,1],]) +
+  geom_point(aes(x=as_date(Date), y=Coho_AL_ObsTotal, col=StreamName), shape=19, size=2)+
+  geom_line(aes(x=as_date(Date), y=Coho_AL_ObsTotal, col=StreamName))+
+  #geom_point(aes(x=as_date(Date), y=Sock_AL_ObsTotal, col=StreamName), shape=2,  size=2)+
+  #geom_line(aes(x=as_date(Date), y=Sock_AL_ObsTotal, col=StreamName))+
+  scale_x_date(limits = c(as_date("2020-Aug-1"),as_date("2020-dec-15")),
+               date_labels = "%d-%b", date_breaks="2 weeks")+
+  #facet_wrap(~name,scales = "free_y")+
+  labs(title = paste("BF2020",groups$name[i]), y="Tot.Observed Coho (circles) and Sockeye (triangles)",
+       x="Date",col="Stream")+
   theme_dark()+
   theme(legend.position = "bottom",
         axis.text.x = element_text(size=8,angle =45, hjust=1),
         legend.text = element_text(size=8),legend.box = "vertical")
-plot.area1
- ggsave(plot = plot.area1, filename = "area1coho.png", 
+  ggsave(plot = group2020plot, filename = paste0("BF2020",groups$name[i],".png"),
          height=6, width=10,device = "png", dpi=300)
+}
 
 
 
-# Area 2E
-
-bc16.area2E <- bc16short %>% 
-  filter(StatArea %in% "2E") 
-str.area2E <- table(bc16.area2E$StreamName) %>% 
-  as.data.frame() %>% 
-  filter(Freq>=40) %>% 
-  select(StreamName = Var1) %>% 
-  left_join(bc16short)
 
 
-plot.area2E <- ggplot(data=str.area2E)+
-  geom_point(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                 col=StreamName, shape=Coho_Active_Spawning), size=2)+
-  geom_line(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                col=StreamName))+
-  facet_wrap(~Year, scales="free_y")+
-  scale_x_date(limits = c(as_date("2021-Aug-10"),as_date("2021-dec-15")),
-               date_labels = "%d-%b", date_breaks="2 weeks")+
-  labs(y="# Coho Observed", title = paste("StatArea=",str.area2E$StatArea),
-       col="", x="appr.date")+
-  theme_dark()+
-  theme(legend.position = "bottom",
-        axis.text.x = element_text(size=8,angle =45, hjust=1),
-        legend.text = element_text(size=8),legend.box = "vertical")
-plot.area2E
-
- ggsave(plot = plot.area2E, filename = "area2Ecoho.png", 
-        height=6, width=10,device = "png", dpi=300)
-
-
-# Area 2W
-
-bc16.area2W <- bc16short %>% 
-  filter(StatArea %in% "2W") 
-str.area2W <- table(bc16.area2W$StreamName) %>% 
-  as.data.frame() %>% 
-  filter(Freq>=25) %>% 
-  select(StreamName = Var1) %>% 
-  left_join(bc16short) %>% 
-  filter(Coho_Active_Spawning %in% c("Start", "Peak","End"))
-
-
-plot.area2W <- ggplot(data=str.area2W)+
-  geom_point(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                 col=StreamName, shape=Coho_Active_Spawning), size=2)+
-  geom_line(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                col=StreamName))+
-  facet_wrap(~Year, scales="free_y")+
-  # scale_x_date(limits = c(as_date("2021-Aug-10"),as_date("2021-dec-15")),
-  #              date_labels = "%d-%b", date_breaks="2 weeks")+
-  labs(y="# Coho Observed", title = paste("StatArea=",bc16.area2W$StatArea),
-       col="", x="appr.date")+
-  theme_dark()+
-  theme(legend.position = "bottom",
-        axis.text.x = element_text(size=8,angle =45, hjust=1),
-        legend.text = element_text(size=8),
-        legend.box = "vertical")
-plot.area2W
-
- ggsave(plot = plot.area2W, filename = "area2Wcoho.png", 
-        height=6, width=10,device = "png", dpi=300)
-
-
-# Area 3
-
-bc16.area3 <- bc16short %>% 
-  filter(StatArea %in% "3") 
-str.area3 <- table(bc16.area3$StreamName) %>% 
-  as.data.frame() %>% 
-  filter(Freq>=40) %>% 
-  select(StreamName = Var1) %>% 
-  left_join(bc16short) %>% 
-  filter(Year >= 2010) %>% 
-  filter(Coho_Active_Spawning %in% c("Start", "Peak","End"))
-
-
-plot.area3 <- ggplot(data=str.area3)+
-  geom_point(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                 col=StreamName, shape=Coho_Active_Spawning), size=2)+
-  geom_line(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                col=StreamName))+
-  facet_wrap(~Year, scales="free_y")+
-  # scale_x_date(limits = c(as_date("2021-Aug-10"),as_date("2021-dec-15")),
-  #              date_labels = "%d-%b", date_breaks="2 weeks")+
-  labs(y="# Coho Observed", title = paste("StatArea=",bc16.area3$StatArea),
-       col="", x="appr.date")+
-  scale_shape_discrete(limits=c("Start","Peak", "End"))+
-  theme_dark()+
-  theme(legend.position = "bottom",
-        axis.text.x = element_text(size=8,angle =45, hjust=1),
-        legend.text = element_text(size=8),
-        legend.box = "vertical")
-plot.area3
-
- ggsave(plot = plot.area3, filename = "area3coho.png", 
-        height=6, width=10,device = "png", dpi=300)
-
-
-
-# Area 5
-
-bc16.area5 <- bc16short %>% 
-  filter(StatArea %in% "5") 
-str.area5 <- table(bc16.area5$StreamName) %>% 
-  as.data.frame() %>% 
-  filter(Freq>=40) %>% 
-  select(StreamName = Var1) %>% 
-  left_join(bc16short) %>% 
-  filter(Year >= 2010)
-
-
-plot.area5 <- ggplot(data=str.area5)+
-  geom_point(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                 col=StreamName, shape=Coho_Active_Spawning), size=2)+
-  geom_line(aes(x=as_date(fake.date),y=Coho_AL_ObsTotal,
-                col=StreamName))+
-  facet_wrap(~Year, scales="free_y")+
-  scale_x_date(limits = c(as_date("2021-Aug-10"),as_date("2021-dec-15")),
-               date_labels = "%d-%b", date_breaks="2 weeks")+
-  labs(y="# Coho Observed", title = paste("StatArea=",bc16.area5$StatArea),
-       col="", x="appr.date")+
-  theme_dark()+
-  theme(legend.position = "bottom",
-        axis.text.x = element_text(size=8,angle =45, hjust=1),
-        legend.text = element_text(size=8),
-        legend.box = "vertical")
-plot.area5
-
- ggsave(plot = plot.area5, filename = "area5coho.png", 
-        height=6, width=10,device = "png", dpi=300)
-
-
+#### Hydro stations ####
 #look at hydrology during counts
 
 # this function will download a copy of HYDAT, but i will take some time, 
@@ -592,6 +488,8 @@ ggplot(data=hydro.skeena)+
 
 
 
+
+
 # Skeena R above Babine: 08EB005
 # Skeena R at Glen Vowell: 08EB003
 
@@ -600,13 +498,14 @@ hydro.skeena <- hy_daily_levels(station_number = c("08EB005","08EB003")) %>%
          name=ifelse(STATION_NUMBER=="08EB005","Skeena-Babine",
                      "Skeena-Gitxsan")) %>% 
   dplyr::filter(year >= 2010) %>% 
-  mutate(fyear = factor(year, order = T)) %>% 
+  mutate(fyear = factor(year, order = T))# %>%
   #filter(julian %in% c(yday(ymd("2021-aug-01")),yday(ymd("2021-dec-01"))) ) %>% 
   #filter(!is.na(year))
   
 ggplot(data=hydro.skeena)+
   geom_line(aes(x=julian, y=Value, colour=name), size=1) + 
   facet_wrap(~year)
+
 
 
 
