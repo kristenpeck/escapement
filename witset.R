@@ -74,9 +74,12 @@ witsetSK %>%
   filter(TagStatus %in% c("AR","R")) %>% 
   filter(`Recaptured number` %in% newtags.canyon$uniq.tags)
 #in 2021, 117 fish were recapped at campground, 39 of which were 
-#   tagged at the canyon 
+#   tagged at the canyon (33%)
 
-#what is the longest time between tagging and recapture?
+#what is the longest time between tagging and recapture? TBD
+
+
+
 #are there any duplicate new tag numbers within year? Yes
 #   Does colour need to be attached? Yes - done
 anyDuplicated(witsetSK$newtags)
@@ -91,7 +94,7 @@ anyDuplicated(witsetSK$newtags)
   filter(year %in% 2021) %>% 
   filter(!is.na(recap.tag), 
          !(recap.tag %in% new.tag) ) )
-#there are 10 recaptures without a matching tag number in 2021
+#there are 15 recaptures without a matching tag number in 2021
 
 #how many new tag numbers with no colour?
 witsetSK %>% 
