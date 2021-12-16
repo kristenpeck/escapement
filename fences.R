@@ -1,6 +1,7 @@
 
-# Script cleaning up and re-exporting daily fence data
-#Babine fence data
+# This script is used to clean, QA and analyse fish fence data
+# Author: Kristen P., DFO 
+# Created 2 Sept 2021
 
 
 
@@ -9,6 +10,9 @@ library(tidyverse)
 library(ggplot2)
 library(lubridate)
 
+
+
+##### Babine fence ####
 
 #newer coho data #Babine 1946-2020:
 babine194620 <- read_excel("Babine Coho Daily 1946-2020.xlsx", sheet="Coho",
@@ -26,7 +30,8 @@ babine.extensions1 <- babine194620 %>%
 
 #"base years" based on Holtby
 base.yrs = c(1950,1952,1957,1976,1977,1979,1985,1989,1995,1996,1998)
-#filter.df
+
+#filter df for base years
 babine.extensions2 <- babine194620 %>% 
   filter(Year %in% base.yrs)
 
@@ -66,7 +71,10 @@ ggplot()+
 # yday(ymd("2021-10-15"))
 # as_date(280,origin="2021-01-01")
 
-#### coho estimate - Holtby's ####
+
+
+
+#### Coho expansion - Holtby's method ####
 
 # calculate ave daily proportion of run for base years
 
@@ -91,7 +99,7 @@ ggplot(ave.daily.base.yrs)+
   geom_line(aes(x=fake.date,y=ave.daily.prop))
 
 #expand non-base years using base year proportions
-
+    #base years from Holtby report
 base.yrs = c(1950,1952,1957,1976,1977,1979,1985,1989,1995,1996,1998)
 non.base.yrs <- setdiff(as.numeric(unique(babine194620$Year)),base.yrs)
 non.base.yrs <- setdiff(non.base.yrs,1965) #removed 1965 since they estimate differently
@@ -142,16 +150,32 @@ holtby20002021 <- ggplot(therest)+
   geom_col(aes(x=Year, y=est.total), fill="grey10", col="black") + 
   geom_col(aes(x=Year, y=total), fill="grey50", col="black") +
   geom_col(data=second2021,aes(x=Year, y=total), fill="purple", col="black") +
-  geom_text(aes(x=2020.8,y=8000,label="2021 \n estimated"),size=1.5)+
-  geom_text(aes(x=2022,y=8500,label="2021 \n actual"),size=2)+
+  geom_text(aes(x=2021,y=7900,label="est'd"),size=2)+
+  geom_text(aes(x=2022,y=8200,label="actual"),size=2)+
+  geom_text(aes(x=2021.5,y=9000,label="2021"),size=3)+
+  geom_hline(aes(yintercept=1200))+
+  geom_hline(aes(yintercept=11500),linetype="dashed")+
   scale_x_continuous(limits = c(1999,2023),breaks = seq(2000,2020,1))+
   labs(y="Coho Count (grey) and Expansion (black)",x="")+
-  theme(axis.text.x = element_text(hjust=1,angle=45))
-        # axis.text.y = element_text(size = 14),
+  theme_classic()+theme(axis.text.x = element_text(hjust=1,angle=45))
+  
+        
+# axis.text.y = element_text(size = 14),
         # axis.title.y = element_text(size = 16))
 holtby20002021
 
 ggsave(holtby20002021,filename = "holtby20002021.png",width = 6.5,height=4,device = "png")
+
+
+
+
+
+
+
+
+
+
+
 
 # babine <- babine201017 %>%
 #   mutate(Date = ymd(paste0(Year,substr(as.character(Date),
