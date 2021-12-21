@@ -176,8 +176,7 @@ canyontagrecaps <- witsetSK %>%
 #total canyon catch excluding canyon tags
 canyoncatch <- witsetSK %>% 
   #filter(year %in% year.select) %>% 
-  filter(Location_Code %in% "Canyon") 
-%>% 
+  filter(Location_Code %in% "Canyon") %>% 
   filter(!(recap.tag %in% unique(newtagscanyon$new.tag)))
 #2452 SK captured at canyon. Should exclude other portions of catch?
   
