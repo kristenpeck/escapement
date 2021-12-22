@@ -32,12 +32,11 @@ witsetSK <- witsetSK.raw %>%
 str(witsetSK)
 unique(witsetSK$new.tag)
 
+
 nanikaswim <- read_excel("NanikaSnorkel.xlsx") %>% 
   select(year=Year, nanika.counted=`total sockeye counted`,
          nanika.tags=`total tags observed`)
 str(nanikaswim)
-
-unique(witsetSK$TagStatus)
 
 
 SKtotals <- witsetSK %>% 
@@ -45,6 +44,7 @@ SKtotals <- witsetSK %>%
     summarize(totalSK = length(year),
               harvested=length(which(Harvested %in% TRUE)),
               newtags = length(which(TagStatus %in% c("A","A2"))),
+              newtagcol = length(which(!is.na(AppliedColor))),
               recaps.witset = length(which(TagStatus %in% c("AR","R"))))%>% 
     left_join(nanikaswim)
 SKtotals
@@ -52,10 +52,11 @@ SKtotals
 SKbylocation <- witsetSK %>% 
   group_by(Location_Code, year) %>% 
   summarize(totalcaught = length(Location_Code), 
-            harvested=length(which(Harvested %in% TRUE))) 
+            harvested=length(which(Harvested %in% TRUE)),
+            released= length(which(TagStatus %in% c("A")))) 
 SKbylocation
 
-#QA:
+#QA SK: ####
 
 #note that the column Recaptured Color has 7 numbers in there, not just colors (mostly 2017)
 #   To fix manually!- DONE
@@ -202,7 +203,7 @@ canyoncatch <- witsetSK %>%
 LP <- m %>% 
   left_join(r) %>% 
   left_join(c) %>% 
-  mutate(LP = marked*total.catch/recapped)
+  mutate(LP = (marked+1)*(total.catch+1)/(recapped+1))
 LP
 
 ggplot(data=LP)+
@@ -245,14 +246,126 @@ COtotals
 CObylocation <- witsetCO %>% 
   group_by(Location_Code, year) %>% 
   summarize(totalcaught = length(Location_Code), 
-            harvested=length(which(Harvested %in% TRUE))) 
+            harvested=length(which(Harvested %in% TRUE)),
+            released = length(which(TagStatus %in% c("A")))) 
 CObylocation
 
 
-#toboggan
-# c(Year, `No. Wild in fence count`, `No. Hatchery in fence count`,
-#   `Total estimated return`, `Total estimated wild return`,
-#   `Total estimated hatchery return`)
-# c(2021, 
+#QA Coho: ####
+
+
+#how many fish recapped at campground?
+witsetCO %>% 
+  filter(year %in% 2021, Location_Code %in% "Campground") %>% 
+  filter(TagStatus %in% c("AR","R"))
+
+#how many of those fish were marked at the canyon?
+newtags.canyon <- witsetCO %>% 
+  filter(year %in% 2021, Location_Code %in% "Canyon") %>% 
+  summarize(uniq.tags=unique(AppliedTagNumber))
+
+witsetCO %>% 
+  filter(year %in% 2021, Location_Code %in% "Campground") %>% 
+  filter(TagStatus %in% c("AR","R")) %>% 
+  filter(`Recaptured number` %in% newtags.canyon$uniq.tags)
+#in 2021, 43 fish were recapped at campground, 7 of which were 
+#   tagged at the canyon (16%)
+
+#what is the longest time between tagging and recapture? TBD
+
+
+
+#are there any duplicate new tag numbers within 2021? Yes
+#   Does colour need to be attached? Yes - done with new.tag column
+
+tmp <- witsetCO %>% 
+  filter(!is.na(new.tag), year %in% 2021) 
+tmp[duplicated(tmp$new.tag),] %>% 
+  select(Sample_Date, Location_Code, Counter, new.tag)
+#2021: B-53760 duplicate not fixable, the rest fixed
+
+
+
+
+
+
+#how many recaptures without a new tag record? Filter out.
+(new.recaps <- witsetCO %>% 
+    filter(year %in% 2021) %>% 
+    filter(!is.na(recap.tag), 
+           !(recap.tag %in% new.tag) ) ) %>% 
+  select(Sample_Date, Location_Code,  TagStatus, Counter, recap.tag)
+#there are 10 recaptures without a matching tag number in 2021
+# most fixed, but B-53949 is an A2 (to fix)
+
+#how many new tag numbers with no colour?
+witsetCO %>% 
+  filter(!is.na(AppliedTagNumber),is.na(AppliedColor), year %in% 2021)
+#0 missing colour of tag in 2021
+
+#how many tag colours with no tag number?
+witsetCO %>% 
+  filter(!is.na(AppliedColor),is.na(AppliedTagNumber), year %in% 2021)
+#0 tags with no number in 2021
+
+#how many recap tag colours with no tag number?
+witsetCO %>% 
+  filter(!is.na(`Recaptured Color`),is.na(`Recaptured number`), year %in% 2021) %>% 
+  select(Sample_Date, Location_Code,  TagStatus, Counter, recap.tag)
+#0 in 2021
+
+#how many recap tag numbers with no colour?
+witsetCO %>% 
+  filter(!is.na(`Recaptured number`),is.na(`Recaptured Color`), year %in% 2021)
+#none in 2021
+
+#check if the tag status is recorded incorrectly
+(no.tag.number <- witsetCO %>% 
+    filter(TagStatus %in% c("A","A2"),
+           is.na(AppliedTagNumber)&is.na(AppliedColor))) %>% 
+  filter(year %in% 2021) 
+#0 cases in 2021
+
+
+#now line up with Toboggan Creek recaps
+tobog.tags.raw <- read_csv("Toboggan.tagrecoveries.2018-2021.csv")
+
+tobog.tags <- tobog.tags.raw %>% 
+  filter(!is.na(tag)) %>% 
+  mutate(year = year(Date),tob.tag = tag, tob.date = Date) %>% 
+  select(year, tob.date, tob.tag)
+
+tag.match1 <- tobog.tags %>%
+  left_join(witsetCO, by= c("year","tob.tag" = "AppliedTagNumber")) %>% 
+  select(tob.date,tob.tag, Sample_Date, Location_Code, new.tag)
+tag.match2 <- tobog.tags %>%
+  left_join(witsetCO, by= c("year","tob.tag" = "Recaptured number")) %>% 
+  select(tob.date,tob.tag, Sample_Date, Location_Code, recap.tag)
+
+tag.match1 %>% 
+  filter(is.na(new.tag))
+#18 recovered tags at toboggan between 2018 and 2021 have no match at witset
+
+recap.col <- tag.match2 %>% 
+  filter(!is.na(recap.tag)) %>% 
+  select(Sample_Date.recap=Sample_Date,tob.tag,recap.tag)
+  
+
+tag.match <- tag.match1 %>% 
+  left_join(recap.col)
+  
+#time between tagging and recovery at Toboggan
+tag.match %>% 
+  filter(!is.na(Sample_Date)) %>% 
+  mutate(year = year(tob.date),
+         canyon.to.fence = as_date(tob.date)-as_date(Sample_Date)) %>% 
+  select(year,tob.tag, canyon.to.fence) %>% 
+  group_by(year) %>% 
+  summarize(ave.canyon.to.fence = round(mean(canyon.to.fence),0), 
+            n=length(canyon.to.fence))
+
+tag.match %>% 
+  filter(is.na(new.tag) & is.na(recap.tag))
+#17 tags found in neither the initial cap or the recap
 
 
