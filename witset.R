@@ -328,7 +328,8 @@ witsetCO %>%
 
 
 #now line up with Toboggan Creek recaps
-tobog.tags.raw <- read_csv("Toboggan.tagrecoveries.2018-2021.csv")
+tobog.tags.raw <- read_excel("Toboggan.tagrecoveries.2013.2018-2021.xlsx",
+                              na = "NA")
 
 tobog.tags <- tobog.tags.raw %>% 
   filter(!is.na(tag)) %>% 
@@ -352,20 +353,23 @@ recap.col <- tag.match2 %>%
   
 
 tag.match <- tag.match1 %>% 
-  left_join(recap.col)
+  left_join(recap.col) %>% 
+  mutate(year = year(tob.date),
+         canyon.to.fence = as_date(tob.date)-as_date(Sample_Date))
   
 #time between tagging and recovery at Toboggan
-tag.match %>% 
+(ave.canyon.to.fence <- tag.match %>% 
   filter(!is.na(Sample_Date)) %>% 
-  mutate(year = year(tob.date),
-         canyon.to.fence = as_date(tob.date)-as_date(Sample_Date)) %>% 
   select(year,tob.tag, canyon.to.fence) %>% 
   group_by(year) %>% 
   summarize(ave.canyon.to.fence = round(mean(canyon.to.fence),0), 
-            n=length(canyon.to.fence))
+            n=length(canyon.to.fence)))
 
 tag.match %>% 
   filter(is.na(new.tag) & is.na(recap.tag))
 #17 tags found in neither the initial cap or the recap
 
-
+ggplot()+
+  geom_histogram(data = tag.match,aes(x=canyon.to.fence), binwidth=5)+
+  geom_vline(data= ave.canyon.to.fence,aes(xintercept = ave.canyon.to.fence))+
+  facet_wrap(~year)
