@@ -1,9 +1,14 @@
 # Witset MR
+#QA and analysis
+
+# Author: Kristen Peck
+# Created: fall 2021
 
 library(tidyverse)
 library(ggplot2)
 library(readxl)
 library(lubridate)
+
 
 # # # # # # # # #
 ###### SOCK #####
@@ -14,6 +19,7 @@ library(lubridate)
 witsetSK.raw <- read_excel("QuerySKWitset.xlsx") 
 
 unique(witsetSK.raw$`Recaptured Color`)
+unique(witsetSK.raw$AppliedColor)
 
 witsetSK <- witsetSK.raw %>% 
   mutate(tag.col=recode(AppliedColor,Orange="o",yellow="y",White="w",
@@ -74,7 +80,7 @@ witsetSK %>%
   filter(year %in% 2021, Location_Code %in% "Campground") %>% 
   filter(TagStatus %in% c("AR","R")) %>% 
   filter(`Recaptured number` %in% newtags.canyon$uniq.tags)
-#in 2021, 117 fish were recapped at campground, 39 of which were 
+#in 2021, 116 fish were recapped at campground, 40 of which were 
 #   tagged at the canyon (33%)
 
 #what is the longest time between tagging and recapture? TBD
